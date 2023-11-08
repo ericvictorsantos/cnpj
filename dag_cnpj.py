@@ -97,8 +97,7 @@ with DAG(**dag_args) as dag:
 
     extract_task = PythonOperator(
         task_id='extract',
-        python_callable=extract.run,
-        op_args=['{{ run_id }}']
+        python_callable=extract.run
     )
     # transform_task = PythonOperator(
     #     task_id='transform',
