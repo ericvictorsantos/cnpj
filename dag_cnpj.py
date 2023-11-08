@@ -14,9 +14,9 @@ from airflow.operators.python import PythonOperator
 
 # custom
 from cnpj.config import Config
-from cnpj.src.bll.load import Load
+# from cnpj.src.bll.load import Load
 from cnpj.src.bll.extract import Extract
-from cnpj.src.bll.transform import Transform
+# from cnpj.src.bll.transform import Transform
 
 config = Config().load_config()
 
@@ -92,23 +92,23 @@ dag_args = {
 
 with DAG(**dag_args) as dag:
     extract = Extract()
-    transform = Transform()
-    load = Load()
+    # transform = Transform()
+    # load = Load()
 
     extract_task = PythonOperator(
         task_id='extract',
         python_callable=extract.run,
         op_args=['{{ run_id }}']
     )
-    transform_task = PythonOperator(
-        task_id='transform',
-        python_callable=transform.run,
-        op_args=['{{ run_id }}']
-    )
-    load_task = PythonOperator(
-        task_id='load',
-        python_callable=load.run,
-        op_args=['{{ run_id }}']
-    )
+    # transform_task = PythonOperator(
+    #     task_id='transform',
+    #     python_callable=transform.run,
+    #     op_args=['{{ run_id }}']
+    # )
+    # load_task = PythonOperator(
+    #     task_id='load',
+    #     python_callable=load.run,
+    #     op_args=['{{ run_id }}']
+    # )
 
-    extract_task >> transform_task >> load_task
+    # extract_task >> transform_task >> load_task
