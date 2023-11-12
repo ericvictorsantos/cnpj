@@ -57,7 +57,7 @@ def days_ago(days):
     """
 
     date_time = datetime.now(tz=local_tz)
-    date_time = datetime(date_time.year, date_time.month, date_time.day)
+    date_time = date_time.replace(hour=0, minute=0, second=0, microsecond=0)
 
     date_time = date_time - timedelta(days=days)
 
