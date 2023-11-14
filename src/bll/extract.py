@@ -36,7 +36,7 @@ class Extract:
         self.log = getLogger('airflow.task')
         self.config = Config().load_config()
         self.url = self.config['job']['url']
-        self.data_dir = f'{self.config["job"]["path"]}/data'
+        self.data_path = self.config["data_path"]
 
     def download(self, file_name):
         """
@@ -52,7 +52,7 @@ class Extract:
         None
         """
 
-        output_file = f'{self.data_dir}/{self.layer}/{file_name}'
+        output_file = f'{self.data_path}/{self.layer}/{file_name}'
         if os_path.isfile(output_file):
             self.log.info(f'{file_name} already exist.')
         else:
@@ -98,12 +98,12 @@ class Extract:
 
         Returns
         -------
-        None
+        None    
         """
 
         start_time = time()
 
-        self.log.info(f'run job...')
+        self.log.info(f'run extract...')
 
         try:
             self.start.run()
@@ -112,4 +112,4 @@ class Extract:
             raise
 
         elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'run job done! {elapsed_time}s')
+        self.log.info(f'run extract done! {elapsed_time}s')

@@ -31,7 +31,7 @@ class File:
     def __init__(self):
         self.log = getLogger('airflow.task')
         self.config = Config().load_config()
-        self.data_dir = f'{self.config["job"]["path"]}/data'
+        self.data_path = self.config['data_path']
         self.local_or_cloud = self.config['environment']['local_or_cloud']
 
     def clear(self):
@@ -50,7 +50,7 @@ class File:
         if self.local_or_cloud == 'cloud':
             for layer in ['bronze', 'silver', 'gold']:
                 self.log.info(f'----- {layer} -----')
-                file_paths = glob(f'{self.data_dir}/{layer}/*.bin')
+                file_paths = glob(f'{self.data_path}/{layer}/*.bin')
                 if len(file_paths) > 0:
                     for file_path in file_paths:
                         if os_path.isfile(file_path):
@@ -75,7 +75,7 @@ class File:
             File zip names.
         """
 
-        files = glob(f'{self.data_dir}/{file_name}')
+        files = glob(f'{self.data_path}/{file_name}')
 
         return files
 
@@ -94,7 +94,7 @@ class File:
             Any type with values.
         """
 
-        file = f'{self.data_dir}/{file_name}.bin'
+        file = f'{self.data_path}/{file_name}.bin'
 
         if os_path.isfile(file):
             with open(file, 'rb') as context:
@@ -120,7 +120,7 @@ class File:
         None
         """
 
-        file = f'{self.data_dir}/{file_name}.bin'
+        file = f'{self.data_path}/{file_name}.bin'
 
         Path(file).parent.mkdir(parents=True, exist_ok=True)
         with open(file, 'wb') as context:

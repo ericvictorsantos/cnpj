@@ -52,6 +52,7 @@ class Config:
         config = toml_load(f'{self.job_path}/config.toml')
         config['job']['path'] = self.job_path
         config['job']['name'] = self.job_name
+        config['data_path'] = self.job_path.replace('dags', 'data')
         config['environment'] = {'local_or_cloud': self.local_or_cloud}
         config['environment'].update({'timezone': self.timezone})
 
