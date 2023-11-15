@@ -101,8 +101,7 @@ with DAG(**dag_args) as dag:
     )
     transform_task = PythonOperator(
         task_id='transform',
-        python_callable=transform.run,
-        op_args=['{{ run_id }}']
+        python_callable=transform.run
     )
     # load_task = PythonOperator(
     #     task_id='load',
