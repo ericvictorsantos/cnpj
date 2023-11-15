@@ -5,7 +5,7 @@
 from time import time
 from datetime import datetime
 from re import compile as re_compile
-from os import path as os_path, remove as os_remove
+from os import path as os_path, remove as os_remove, mkdir as os_mkdir
 
 # installed
 from logging import getLogger
@@ -36,7 +36,7 @@ class Start:
         self.config = Config().load_config()
         self.url = self.config['job']['url']
         self.re_replace = re_compile(r'[\s:-]+')
-        self.data_dir = f'{self.config["job"]["path"]}/data'
+        self.data_path = self.config['data_path']
         self.re_zip = re_compile(r"(Empre|Estabele|Simples|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
 
     def clear_temporary_data(self):
@@ -90,6 +90,27 @@ class Start:
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'compare_files done! {elapsed_time}s')
 
+    def create_layers(self):
+        """
+        Create structure folder.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        start_time = time()
+        self.log.info('create_folder_structure...')
+
+        self.file.layers()
+
+        elapsed_time = round(time() - start_time, 3)
+        self.log.info(f'create_folder_structure done! {elapsed_time}s')
+
     def delete_files(self):
         """
         Delete local files.
@@ -108,7 +129,7 @@ class Start:
 
         files = self.file.load(f'bronze/delete_files.bin')
         for file in files:
-            file_path = f'{self.data_dir}/bronze/{file}'
+            file_path = f'{self.data_path}/bronze/{file}'
             if os_path.isfile(file_path):
                 os_remove(file_path)
                 self.log.info(f'deleted: {file}')
@@ -232,9 +253,10 @@ class Start:
 
         start_time = time()
 
-        self.log.info(f'run start...')
+        self.log.info(f'start...')
 
         try:
+            self.create_layers()
             self.clear_temporary_data()
             self.delete_temp_files()
             self.site_files()
@@ -245,4 +267,4 @@ class Start:
             raise
 
         elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'run start done! {elapsed_time}s')
+        self.log.info(f'start done! {elapsed_time}s')
