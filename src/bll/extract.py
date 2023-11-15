@@ -59,7 +59,7 @@ class Extract:
             path = f'{file_name.split("_")[0]}.zip'
             url = f'{self.url}/{path}'
             self.log.info(f'downloading {path}...')
-            wget_download(url, out=output_file, bar=bar_adaptive)
+            wget_download(url, out=output_file, bar=None)
             self.log.info(f'{path} downloaded.')
 
     def files(self):
@@ -76,7 +76,7 @@ class Extract:
         """
 
         start_time = time()
-        self.log.info('extract_files...')
+        self.log.info('files...')
 
         files = self.file.load(f'{self.layer}/download_files')
 
@@ -86,7 +86,7 @@ class Extract:
         self.log.info(f'files: {len(files)}')
 
         elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'extract_files done! {elapsed_time}s')
+        self.log.info(f'files done! {elapsed_time}s')
 
     def run(self):
         """
@@ -103,7 +103,7 @@ class Extract:
 
         start_time = time()
 
-        self.log.info(f'run extract...')
+        self.log.info(f'extract...')
 
         try:
             self.start.run()
@@ -112,4 +112,4 @@ class Extract:
             raise
 
         elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'run extract done! {elapsed_time}s')
+        self.log.info(f'extract done! {elapsed_time}s')
