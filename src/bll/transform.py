@@ -40,6 +40,53 @@ class Transform:
         self.date_time = datetime.utcnow()
         self.layer = 'silver'
 
+    def companies(self):
+        """
+        Transform companies.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        start_time = time()
+        self.log.info('companies...')
+
+        columns = [
+            'cnpj_basico',
+            'razao_social',
+            'natureza_juridica',
+            'qualificacao_responsavel',
+            'capital_social',
+            'porte_empresa',
+            'ente_federativo'
+        ]
+
+        file_zips = sorted(self.file.files(f'bronze/Emp*.zip'))
+
+        for file_zip in file_zips:
+            zip_name = os_path.basename(file_zip).split('.')[0]
+            self.log.info(f'{zip_name.split("_")[0]}...')
+            with ZipFile(file_zip) as obj_zip:
+                input_file_name = obj_zip.filelist[0].filename
+                input_file = obj_zip.open(input_file_name)
+                chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
+                for idx, chunk in enumerate(chunks, start=1):
+                    output_file_name = f'{zip_name}_{str(idx).rjust(2, "0")}.parquet'
+                    if not self.file.exists(f'silver/{output_file_name}'):
+                        self.file.save(chunk, f'silver/{output_file_name}')
+                        self.log.info(f'{output_file_name} done!.')
+                    else:
+                        self.log.info(f'{output_file_name} already exists.')
+            self.log.info(f'{zip_name.split("_")[0]} done!')
+
+        elapsed_time = round(time() - start_time, 3)
+        self.log.info(f'companies done! {elapsed_time}s')
+
     def domains(self):
         """
         Table of domains.
@@ -170,6 +217,7 @@ class Transform:
         try:
             self.domains()
             self.institutions()
+            self.companies()
         except Exception:
             raise
 
