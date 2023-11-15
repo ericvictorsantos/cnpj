@@ -24,7 +24,7 @@ os_environ['AIRFLOW_HOME'] = JOB_PATH.replace('/dags', '')
 from cnpj.config import Config
 # from cnpj.src.bll.load import Load
 from cnpj.src.bll.extract import Extract
-# from cnpj.src.bll.transform import Transform
+from cnpj.src.bll.transform import Transform
 
 
 class Run:
@@ -43,7 +43,7 @@ class Run:
 
     def __init__(self):
         self.extract = Extract()
-        # self.transform = Transform()
+        self.transform = Transform()
         # self.load = Load()
         self.log = getLogger('airflow.task')
         self.config = Config().load_config()
@@ -69,7 +69,7 @@ class Run:
         dag_id = 'dag_development'
 
         self.extract.run()
-        # self.transform.run(dag_id)
+        self.transform.run()
         # self.load.run(dag_id)
 
         self.log.info('***** end *****')
