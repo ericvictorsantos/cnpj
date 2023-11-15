@@ -78,7 +78,7 @@ class Extract:
         start_time = time()
         self.log.info('files...')
 
-        files = self.file.load(f'{self.layer}/download_files')
+        files = self.file.load(f'{self.layer}/download_files.bin')
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(self.download, files))
