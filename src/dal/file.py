@@ -9,6 +9,7 @@ from os import path as os_path, remove as os_remove
 from pickle import dump as pck_save, load as pck_load
 
 # installed
+from pandas import DataFrame, read_parquet as pd_read_parquet
 
 # custom
 from cnpj.config import Config
@@ -60,6 +61,27 @@ class File:
                     self.log.info('no temp files to delete.')
                 self.log.info(f'----- {layer} -----')
 
+    def exists(self, file_name):
+        """
+        File exists.
+
+        Parameters
+        ----------
+        file_name : str
+            File name to data.
+
+        Returns
+        -------
+        flag : bool
+            If file exists.
+        """
+
+        file_path = f'{self.data_path}/{file_name}'
+
+        flag = True if os_path.exists(file_path) else False
+
+        return flag
+
     def files(self, file_name):
         """
         Find zip files.
@@ -90,15 +112,18 @@ class File:
 
         Returns
         -------
-        data : any
+        data : Any
             Any type with values.
         """
 
-        file = f'{self.data_path}/{file_name}.bin'
+        file_path = f'{self.data_path}/{file_name}'
 
-        if os_path.isfile(file):
-            with open(file, 'rb') as context:
-                data = pck_load(context)
+        if os_path.isfile(file_path):
+            if Path(file_path).suffix == '.parquet':
+                data = pd_read_parquet(file_path)
+            else:
+                with open(file_path, 'rb') as context:
+                    data = pck_load(context)
         else:
             data = None
 
@@ -110,8 +135,8 @@ class File:
 
         Parameters
         ----------
-        data : any
-            Any type data.
+        data : Any
+            Data.
         file_name : str
             File name to file data.
 
@@ -120,8 +145,11 @@ class File:
         None
         """
 
-        file = f'{self.data_path}/{file_name}.bin'
+        file_path = f'{self.data_path}/{file_name}'
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        Path(file).parent.mkdir(parents=True, exist_ok=True)
-        with open(file, 'wb') as context:
-            pck_save(data, context)
+        if Path(file_path).suffix == '.parquet':
+            data.to_parquet(f'{file_path}')
+        else:
+            with open(file_path, 'wb') as context:
+                pck_save(data, context)
