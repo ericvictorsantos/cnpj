@@ -1,3 +1,3 @@
 [job]
-limit=5000
+chunk_size=1000000
 url='https://dadosabertos.rfb.gov.br/CNPJ'
