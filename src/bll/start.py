@@ -76,16 +76,16 @@ class Start:
         start_time = time()
         self.log.info('compare_files...')
 
-        site_files = self.file.load(f'bronze/site_files')
-        local_files = self.file.load(f'bronze/local_files')
+        site_files = self.file.load(f'bronze/site_files.bin')
+        local_files = self.file.load(f'bronze/local_files.bin')
 
         delete_files = sorted(list(set(local_files) - set(site_files)))
         self.log.info(f'delete files: {len(delete_files)}')
-        self.file.save(delete_files, 'bronze/delete_files')
+        self.file.save(delete_files, 'bronze/delete_files.bin')
 
         download_files = sorted(list(set(site_files) - set(local_files)))
         self.log.info(f'download files: {len(download_files)}')
-        self.file.save(download_files, 'bronze/download_files')
+        self.file.save(download_files, 'bronze/download_files.bin')
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'compare_files done! {elapsed_time}s')
@@ -106,7 +106,7 @@ class Start:
         start_time = time()
         self.log.info('delete_files...')
 
-        files = self.file.load(f'bronze/delete_files')
+        files = self.file.load(f'bronze/delete_files.bin')
         for file in files:
             file_path = f'{self.data_dir}/bronze/{file}'
             if os_path.isfile(file_path):
@@ -159,7 +159,7 @@ class Start:
 
         start_time = time()
         self.log.info('local_files...')
-        file_name = f'bronze/local_files'
+        file_name = f'bronze/local_files.bin'
         files = self.file.load(file_name)
 
         if files is None:
@@ -191,7 +191,7 @@ class Start:
 
         start_time = time()
         self.log.info('site_files...')
-        file_name = f'bronze/site_files'
+        file_name = f'bronze/site_files.bin'
         files = self.file.load(file_name)
 
         if files is None:
