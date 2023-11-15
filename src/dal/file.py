@@ -101,6 +101,22 @@ class File:
 
         return files
 
+    def layers(self):
+        """
+        Create structure folder.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        for layer in ['bronze', 'silver', 'gold']:
+            Path(f'{self.data_path}/{layer}').mkdir(parents=True, exist_ok=True)
+
     def load(self, file_name):
         """
         Load data.
@@ -146,7 +162,6 @@ class File:
         """
 
         file_path = f'{self.data_path}/{file_name}'
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
         if Path(file_path).suffix == '.parquet':
             data.to_parquet(f'{file_path}')
