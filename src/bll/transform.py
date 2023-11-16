@@ -231,8 +231,8 @@ class Transform:
                     input_file = obj_zip.open(input_file_name)
                     chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
                     for idx, chunk in enumerate(chunks, start=1):
-                        output_file_name = f'part_{str(idx).rjust(2, "0")}.parquet'
-                        self.file.save(chunk, f'{zip_path}/{output_file_name}')
+                        output_file_name = f'part_{str(idx).rjust(2, "0")}'
+                        self.file.save(chunk, f'{zip_path}/{output_file_name}.parquet')
                         self.log.info(f'{output_file_name} done!.')
             else:
                 self.log.info(f'{zip_name} already exists.')
