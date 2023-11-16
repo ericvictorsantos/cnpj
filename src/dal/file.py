@@ -61,22 +61,41 @@ class File:
                     self.log.info('no temp files to delete.')
                 self.log.info(f'----- {layer} -----')
 
-    def exists(self, file_name):
+    def delete(self, file_paths):
+        """
+        Delete files
+
+        Parameters
+        ----------
+        file_paths : list[str]
+            File path.
+
+        Returns
+        -------
+        None
+        """
+
+        for file_path in file_paths:
+            file_path = f'{self.data_path}/{file_path}'
+            if os_path.exists(file_path):
+                os_remove(file_path)
+
+    def exists(self, file_path):
         """
         File exists.
 
         Parameters
         ----------
-        file_name : str
-            File name to data.
+        file_path : str
+            File path.
 
         Returns
         -------
         flag : bool
-            If file exists.
+            If path exists.
         """
 
-        file_path = f'{self.data_path}/{file_name}'
+        file_path = f'{self.data_path}/{file_path}'
 
         flag = True if os_path.exists(file_path) else False
 
@@ -101,22 +120,6 @@ class File:
 
         return files
 
-    def layers(self):
-        """
-        Create structure folder.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        None
-        """
-
-        for layer in ['bronze', 'silver', 'gold']:
-            Path(f'{self.data_path}/{layer}').mkdir(parents=True, exist_ok=True)
-
     def load(self, file_name):
         """
         Load data.
@@ -134,7 +137,7 @@ class File:
 
         file_path = f'{self.data_path}/{file_name}'
 
-        if os_path.isfile(file_path):
+        if os_path.exists(file_path):
             if Path(file_path).suffix == '.parquet':
                 data = pd_read_parquet(file_path)
             else:
@@ -162,6 +165,7 @@ class File:
         """
 
         file_path = f'{self.data_path}/{file_name}'
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
         if Path(file_path).suffix == '.parquet':
             data.to_parquet(f'{file_path}')
