@@ -253,7 +253,7 @@ class Transform:
                 file_parquets = sorted(self.file.files(f'silver/{folder_name}/*.parquet'))
                 for file_parquet in file_parquets:
                     parquet_name = os_path.basename(file_parquet).split('.')[0]
-                    parquet_path = f'{folder_path}/{parquet_name}.parquet'
+                    parquet_path = f'{self.data_path}/{folder_path}/{parquet_name}.parquet'
 
                     institutions = spark.read.parquet(file_parquet)
 
