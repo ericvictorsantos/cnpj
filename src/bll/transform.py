@@ -221,8 +221,6 @@ class Transform:
         # Pandas
         self.log.info('----- Bronze -> Silver -----')
         file_zips = sorted(self.file.files(f'bronze/Est*.zip'))
-        # TODO
-        file_zips = file_zips[1:2]
         for file_zip in file_zips:
             zip_name = os_path.basename(file_zip).split('.')[0]
             zip_path = f'{self.layer}/{zip_name}'
@@ -243,7 +241,7 @@ class Transform:
 
         # Spark
         self.log.info('----- Silver -> Gold -----')
-        spark = SparkSession.builder.master('local[1]').getOrCreate()
+        spark = SparkSession.builder.master('local[2]').getOrCreate()
         parquet_folders = sorted(self.file.files(f'{self.layer}/Est*'))
         for parquet_folder in parquet_folders:
             folder_name = parquet_folder.split('/')[-1]
@@ -255,6 +253,7 @@ class Transform:
                     parquet_name = os_path.basename(file_parquet).split('.')[0]
                     parquet_path = f'{self.data_path}/{folder_path}/{parquet_name}.parquet'
 
+                    self.log.info(f'{parquet_name}...')
                     institutions = spark.read.parquet(file_parquet)
 
                     institutions = (
@@ -330,32 +329,12 @@ class Transform:
                         .withColumn('atualizado_em', f.current_timestamp())
                     )
 
-                    # # join matriz filial
-                    # data = spark.read.parquet(f'{self.data_path}/{self.layer}/Matriz_20231018.parquet')
-                    # data = (
-                    #     data
-                    #     .withColumnRenamed('codigo', 'cod_matriz_filial')
-                    #     .withColumnRenamed('descricao', 'desc_matriz_filial')
-                    # )
-                    # institutions = institutions.join(data, on='cod_matriz_filial')
-                    #
-                    # # join situacao cadastral
-                    # data = spark.read.parquet(f'{self.data_path}/{self.layer}/Situacao_20231018.parquet')
-                    # data = (
-                    #     data
-                    #     .withColumnRenamed('codigo', 'cod_situacao_cadastral')
-                    #     .withColumnRenamed('descricao', 'desc_situacao_cadastral')
-                    # )
-                    # institutions = institutions.join(data, on='cod_situacao_cadastral')
-
                     institutions = institutions.replace(np_nan, None)
                     institutions = institutions.replace('NaN', None)
                     institutions = institutions.replace('NAN', None)
 
                     Path(parquet_path).parent.mkdir(parents=True, exist_ok=True)
                     institutions.write.parquet(parquet_path)
-                    # institutions = institutions.toPandas()
-                    # self.file.save(institutions, parquet_path)
                     self.log.info(f'{parquet_name} done!.')
             else:
                 self.log.info(f'{folder_name} already exists.')
