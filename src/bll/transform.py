@@ -3,6 +3,7 @@
 
 # built-in
 from time import time
+from pathlib import Path
 from zipfile import ZipFile
 from logging import getLogger
 from datetime import datetime
@@ -351,8 +352,10 @@ class Transform:
                     institutions = institutions.replace('NaN', None)
                     institutions = institutions.replace('NAN', None)
 
-                    institutions = institutions.toPandas()
-                    self.file.save(institutions, parquet_path)
+                    Path(parquet_path).parent.mkdir(parents=True, exist_ok=True)
+                    institutions.write.parquet(parquet_path)
+                    # institutions = institutions.toPandas()
+                    # self.file.save(institutions, parquet_path)
                     self.log.info(f'{parquet_name} done!.')
             else:
                 self.log.info(f'{folder_name} already exists.')
