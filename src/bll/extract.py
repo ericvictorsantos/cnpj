@@ -1,5 +1,5 @@
 # coding: utf-8
-""" Data Extraction Module"""
+""" Data Extraction Module """
 
 # built-in
 from time import time
@@ -41,8 +41,7 @@ class Extract:
         self.config = Config().load_config()
         self.url = self.config['job']['url']
         self.data_path = self.config["data_path"]
-        self.re_replace = re_compile(r'[\s:-]+')
-        self.re_zip = re_compile(r"(Empre|Estabele|Simples|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
+        self.max_workers = 4
 
     def companies(self):
         """
@@ -74,7 +73,7 @@ class Extract:
         download_files = sorted(list(set(site_files) - set(local_files)))
         self.log.info(f'download files: {len(download_files)}')
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             list(pool.map(self.download, download_files))
 
         elapsed_time = round(time() - start_time, 3)
@@ -111,7 +110,7 @@ class Extract:
         download_files = sorted(list(set(site_files) - set(local_files)))
         self.log.info(f'download files: {len(download_files)}')
 
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             list(pool.map(self.download, download_files))
 
         elapsed_time = round(time() - start_time, 3)
@@ -147,7 +146,7 @@ class Extract:
         download_files = sorted(list(set(site_files) - set(local_files)))
         self.log.info(f'download files: {len(download_files)}')
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             list(pool.map(self.download, download_files))
 
         elapsed_time = round(time() - start_time, 3)
@@ -225,15 +224,17 @@ class Extract:
         self.log.info('site_files...')
         file_name = 'site_files'
         file_path = f'{self.layer}/{file_name}.bin'
+        re_replace = re_compile(r'[\s:-]+')
+        re_zip = re_compile(r"(Empre|Estabele|Simples|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
 
         if not self.file.exists(file_path):
             self.log.info(f'url: {self.url}')
             page_text = req_get(self.url).text
             files = pd_read_html(page_text)[0]
             files.dropna(subset='Size', inplace=True)
-            files = files[files['Name'].str.match(self.re_zip)]
+            files = files[files['Name'].str.match(re_zip)]
             files.rename(columns={'Name': 'name', 'Last modified': 'last_modified'}, inplace=True)
-            files['last_modified'] = files['last_modified'].str.replace(self.re_replace, '', regex=True).str[:8]
+            files['last_modified'] = files['last_modified'].str.replace(re_replace, '', regex=True).str[:8]
             files['file_name'] = files['name'].str.replace('.zip', '')
             files['file_name'] = files['file_name'] + '_' + files['last_modified'] + '.zip'
             files['last_modified'] = files['last_modified'].map(lambda date: datetime.strptime(date, '%Y%m%d'))
