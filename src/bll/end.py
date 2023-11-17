@@ -1,5 +1,5 @@
 # coding: utf-8
-""" End Job Module"""
+""" End Job Module """
 
 # built-in
 from time import time
