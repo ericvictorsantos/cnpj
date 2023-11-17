@@ -40,7 +40,7 @@ class Transform:
         self.chunk_size = self.config['job']['chunk_size']
         self.data_path = self.config['data_path']
         self.layer = 'silver'
-        self.cores = os_cpu_count() / 2
+        self.cores = os_cpu_count() // 2
 
     def companies(self):
         """
