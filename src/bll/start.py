@@ -3,17 +3,11 @@
 
 # built-in
 from time import time
-from datetime import datetime
-from re import compile as re_compile
-from os import path as os_path, remove as os_remove, mkdir as os_mkdir
 
 # installed
 from logging import getLogger
-from requests import get as req_get
-from pandas import read_html as pd_read_html
 
 # custom
-from cnpj.config import Config
 from cnpj.src.dal.file import File
 
 
@@ -33,11 +27,6 @@ class Start:
     def __init__(self):
         self.file = File()
         self.log = getLogger('airflow.task')
-        self.config = Config().load_config()
-        self.url = self.config['job']['url']
-        self.re_replace = re_compile(r'[\s:-]+')
-        self.data_path = self.config['data_path']
-        self.re_zip = re_compile(r"(Empre|Estabele|Simples|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
 
     def clear_temporary_data(self):
         """
