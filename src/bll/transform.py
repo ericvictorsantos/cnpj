@@ -6,9 +6,8 @@ from time import time
 from pathlib import Path
 from zipfile import ZipFile
 from logging import getLogger
-from datetime import datetime
-from os import path as os_path
 from re import compile as re_compile
+from os import path as os_path, cpu_count as os_cpu_count
 
 # installed
 from numpy import nan as np_nan
@@ -40,8 +39,8 @@ class Transform:
         self.config = Config().load_config()
         self.chunk_size = self.config['job']['chunk_size']
         self.data_path = self.config['data_path']
-        self.date_time = datetime.utcnow()
         self.layer = 'silver'
+        self.cores = os_cpu_count() / 2
 
     def companies(self):
         """
@@ -69,23 +68,85 @@ class Transform:
             'ente_federativo'
         ]
 
+        # Pandas
+        self.log.info('----- Bronze -> Silver -----')
         file_zips = sorted(self.file.files(f'bronze/Emp*.zip'))
-
         for file_zip in file_zips:
             zip_name = os_path.basename(file_zip).split('.')[0]
+            zip_path = f'{self.layer}/{zip_name}'
             self.log.info(f'{zip_name.split("_")[0]}...')
-            with ZipFile(file_zip) as obj_zip:
-                input_file_name = obj_zip.filelist[0].filename
-                input_file = obj_zip.open(input_file_name)
-                chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
-                for idx, chunk in enumerate(chunks, start=1):
-                    output_file_name = f'{zip_name}_{str(idx).rjust(2, "0")}.parquet'
-                    if not self.file.exists(f'{self.layer}/{output_file_name}'):
-                        self.file.save(chunk, f'{self.layer}/{output_file_name}')
-                        self.log.info(f'{output_file_name} done!.')
-                    else:
-                        self.log.info(f'{output_file_name} already exists.')
+            if not self.file.exists(zip_path):
+                with ZipFile(file_zip) as obj_zip:
+                    input_file_name = obj_zip.filelist[0].filename
+                    input_file = obj_zip.open(input_file_name)
+                    chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
+                    for idx, chunk in enumerate(chunks, start=1):
+                        output_file_name = f'part_{str(idx).rjust(2, "0")}'
+                        self.log.info(f'{output_file_name}...')
+                        output_file_path = f'{zip_path}/{output_file_name}.parquet'
+                        self.file.save(chunk, output_file_path)
+                        self.log.info(f'{output_file_name} done!')
+            else:
+                self.log.info(f'{zip_name} already exists.')
             self.log.info(f'{zip_name.split("_")[0]} done!')
+        self.log.info('----- Bronze -> Silver -----')
+
+        # Spark
+        self.log.info('----- Silver -> Gold -----')
+        spark = SparkSession.builder.master(f'local[{self.cores}]').getOrCreate()
+        parquet_folders = sorted(self.file.files(f'{self.layer}/Emp*'))
+        for parquet_folder in parquet_folders:
+            folder_name = parquet_folder.split('/')[-1]
+            folder_path = f'gold/{folder_name}'
+            self.log.info(f'{folder_name.split("_")[0]}...')
+            if not self.file.exists(folder_path):
+                file_parquets = sorted(self.file.files(f'silver/{folder_name}/*.parquet'))
+                for file_parquet in file_parquets:
+                    parquet_name = os_path.basename(file_parquet).split('.')[0]
+                    parquet_path = f'{self.data_path}/{folder_path}/{parquet_name}.parquet'
+
+                    self.log.info(f'{parquet_name}...')
+                    companies = spark.read.parquet(file_parquet)
+
+                    companies = companies.drop('ente_federativo')
+
+                    companies = (
+                        companies
+                        .withColumn('capital_social',
+                                    f.regexp_replace('capital_social', ',', '.'))
+                    )
+
+                    companies = (
+                        companies
+                        .withColumn('cnpj_basico',
+                                    companies.cnpj_basico.cast(sql_types.IntegerType()))
+                        .withColumn('cod_natureza_juridica',
+                                    companies.cod_natureza_juridica.cast(sql_types.IntegerType()))
+                        .withColumn('cod_qualificacao_responsavel',
+                                    companies.cod_qualificacao_responsavel.cast(sql_types.IntegerType()))
+                        .withColumn('capital_social',
+                                    companies.capital_social.cast(sql_types.FloatType()))
+                        .withColumn('cod_porte_empresa',
+                                    companies.cod_porte_empresa.cast(sql_types.IntegerType()))
+                    )
+
+                    companies = (
+                        companies
+                        .withColumn('atualizado_em', f.current_timestamp())
+                    )
+
+                    companies = companies.replace(np_nan, None)
+                    companies = companies.replace('NaN', None)
+                    companies = companies.replace('NAN', None)
+
+                    Path(parquet_path).parent.mkdir(parents=True, exist_ok=True)
+                    companies.write.parquet(parquet_path)
+                    self.log.info(f'{parquet_name} done!.')
+            else:
+                self.log.info(f'{folder_name} already exists.')
+            self.log.info(f'{folder_name.split("_")[0]} done!')
+        spark.stop()
+        self.log.info('----- Silver -> Gold -----')
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'companies done! {elapsed_time}s')
@@ -232,7 +293,9 @@ class Transform:
                     chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
                     for idx, chunk in enumerate(chunks, start=1):
                         output_file_name = f'part_{str(idx).rjust(2, "0")}'
-                        self.file.save(chunk, f'{zip_path}/{output_file_name}.parquet')
+                        self.log.info(f'{output_file_name}...')
+                        output_file_path = f'{zip_path}/{output_file_name}.parquet'
+                        self.file.save(chunk, output_file_path)
                         self.log.info(f'{output_file_name} done!.')
             else:
                 self.log.info(f'{zip_name} already exists.')
@@ -241,7 +304,7 @@ class Transform:
 
         # Spark
         self.log.info('----- Silver -> Gold -----')
-        spark = SparkSession.builder.master('local[2]').getOrCreate()
+        spark = SparkSession.builder.master(f'local[{self.cores}]').getOrCreate()
         parquet_folders = sorted(self.file.files(f'{self.layer}/Est*'))
         for parquet_folder in parquet_folders:
             folder_name = parquet_folder.split('/')[-1]
@@ -363,7 +426,7 @@ class Transform:
         try:
             self.domains()
             self.institutions()
-            # self.companies()
+            self.companies()
         except Exception:
             raise
 
