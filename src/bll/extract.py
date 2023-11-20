@@ -4,7 +4,6 @@
 # built-in
 from time import time
 from datetime import datetime
-from os import path as os_path
 from re import compile as re_compile
 from concurrent.futures import ThreadPoolExecutor
 
@@ -60,21 +59,22 @@ class Extract:
         self.log.info('companies...')
 
         site_files = self.file.load(f'{self.layer}/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
         site_files = [file for file in site_files if file.startswith('Emp')]
 
-        local_files = self.file.load(f'{self.layer}/local_files.bin')
-        local_files = [file for file in local_files if file.startswith('Emp')]
+        local_files = self.file.files(f'{self.layer}/Emp*')
 
-        delete_files = sorted(list(set(local_files) - set(site_files)))
-        delete_files = [f'{self.layer}/{file}' for file in delete_files]
-        self.file.delete(delete_files)
-        self.log.info(f'delete files: {len(delete_files)}')
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
 
-        download_files = sorted(list(set(site_files) - set(local_files)))
-        self.log.info(f'download files: {len(download_files)}')
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            list(pool.map(self.download, download_files))
+        files = sorted(list(set(site_files) - set(local_files)))
+        if len(files) > 0:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                list(pool.map(self.download, files))
+        self.log.info(f'download files: {len(files)}')
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'companies done! {elapsed_time}s')
@@ -97,21 +97,23 @@ class Extract:
         re_domains = re_compile(r"(Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
 
         site_files = self.file.load(f'{self.layer}/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
         site_files = [file for file in site_files if re_domains.search(file)]
 
-        local_files = self.file.load(f'{self.layer}/local_files.bin')
+        local_files = self.file.files(f'{self.layer}/*.zip')
         local_files = [file for file in local_files if re_domains.search(file)]
 
-        delete_files = sorted(list(set(local_files) - set(site_files)))
-        delete_files = [f'{self.layer}/{file}' for file in delete_files]
-        self.file.delete(delete_files)
-        self.log.info(f'delete files: {len(delete_files)}')
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
 
-        download_files = sorted(list(set(site_files) - set(local_files)))
-        self.log.info(f'download files: {len(download_files)}')
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            list(pool.map(self.download, download_files))
+        files = sorted(list(set(site_files) - set(local_files)))
+        if len(files) > 0:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                list(pool.map(self.download, files))
+        self.log.info(f'download files: {len(files)}')
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'domains done! {elapsed_time}s')
@@ -133,21 +135,22 @@ class Extract:
         self.log.info('institutions...')
 
         site_files = self.file.load(f'{self.layer}/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
         site_files = [file for file in site_files if file.startswith('Est')]
 
-        local_files = self.file.load(f'{self.layer}/local_files.bin')
-        local_files = [file for file in local_files if file.startswith('Est')]
+        local_files = self.file.files(f'{self.layer}/Est*')
 
-        delete_files = sorted(list(set(local_files) - set(site_files)))
-        delete_files = [f'{self.layer}/{file}' for file in delete_files]
-        self.file.delete(delete_files)
-        self.log.info(f'delete files: {len(delete_files)}')
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
 
-        download_files = sorted(list(set(site_files) - set(local_files)))
-        self.log.info(f'download files: {len(download_files)}')
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            list(pool.map(self.download, download_files))
+        files = sorted(list(set(site_files) - set(local_files)))
+        if len(files) > 0:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                list(pool.map(self.download, files))
+        self.log.info(f'download files: {len(files)}')
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'institutions done! {elapsed_time}s')
@@ -176,37 +179,6 @@ class Extract:
             wget_download(url, out=f'{self.data_path}/{output_file}', bar=None)
             self.log.info(f'{path} downloaded.')
 
-    def local_files(self):
-        """
-        Get local files.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        files : list[str]
-            Local file names.
-        """
-
-        start_time = time()
-        self.log.info('local_files...')
-        file_name = 'local_files'
-        file_path = f'{self.layer}/{file_name}.bin'
-
-        if not self.file.exists(file_path):
-            files = self.file.files(f'{self.layer}/*.zip')
-            if len(files) > 0:
-                files = [os_path.basename(file) for file in files]
-
-            self.file.save(files, file_path)
-        else:
-            self.log.info(f'{file_name } already exists.')
-
-        elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'local_files done! {elapsed_time}s')
-
     def site_files(self):
         """
         Get site files.
@@ -224,21 +196,22 @@ class Extract:
         self.log.info('site_files...')
         file_name = 'site_files'
         file_path = f'{self.layer}/{file_name}.bin'
-        re_replace = re_compile(r'[\s:-]+')
-        re_zip = re_compile(r"(Empre|Estabele|Simples|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
 
         if not self.file.exists(file_path):
+            re_replace = re_compile(r'[\s:-]+')
+            re_zip = re_compile(r"(Empre|Estabele|Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
+
             self.log.info(f'url: {self.url}')
             page_text = req_get(self.url).text
             files = pd_read_html(page_text)[0]
             files.dropna(subset='Size', inplace=True)
             files = files[files['Name'].str.match(re_zip)]
-            files.rename(columns={'Name': 'name', 'Last modified': 'last_modified'}, inplace=True)
-            files['last_modified'] = files['last_modified'].str.replace(re_replace, '', regex=True).str[:8]
-            files['file_name'] = files['name'].str.replace('.zip', '')
-            files['file_name'] = files['file_name'] + '_' + files['last_modified'] + '.zip'
-            files['last_modified'] = files['last_modified'].map(lambda date: datetime.strptime(date, '%Y%m%d'))
-            files = files['file_name'].tolist()
+            files.rename(columns={'Name': 'nome', 'Last modified': 'ultima_extracao'}, inplace=True)
+            files['ultima_extracao'] = files['ultima_extracao'].str.replace(re_replace, '', regex=True).str[:8]
+            files['nome_arquivo'] = files['nome'].str.replace('.zip', '')
+            files['nome_arquivo'] = files['nome_arquivo'] + '_' + files['ultima_extracao'] + '.zip'
+            files['ultima_extracao'] = files['ultima_extracao'].map(lambda date: datetime.strptime(date, '%Y%m%d'))
+            files = files[['nome', 'ultima_extracao', 'nome_arquivo']]
 
             self.file.save(files, file_path)
         else:
@@ -265,10 +238,9 @@ class Extract:
         try:
             self.start.run()
             self.site_files()
-            self.local_files()
+            self.domains()
             self.companies()
             self.institutions()
-            self.domains()
         except Exception:
             raise
 

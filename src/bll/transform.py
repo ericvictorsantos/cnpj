@@ -36,11 +36,11 @@ class Transform:
     def __init__(self):
         self.file = File()
         self.log = getLogger('airflow.task')
-        self.config = Config().load_config()
-        self.chunk_size = self.config['job']['chunk_size']
-        self.data_path = self.config['data_path']
         self.layer = 'silver'
         self.cores = os_cpu_count() // 2
+        self.config = Config().load_config()
+        self.data_path = self.config['data_path']
+        self.chunk_size = self.config['job']['chunk_size']
 
     def companies(self):
         """
@@ -68,47 +68,67 @@ class Transform:
             'ente_federativo'
         ]
 
+        site_files = self.file.load('bronze/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
+        site_files = [site_file.split('.')[0] for site_file in site_files if site_file.startswith('Emp')]
+
+        self.log.info('----- Bronze -> Silver -----')
+        local_files = sorted(self.file.files(f'silver/Emp*'))
+
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
+
+        files = sorted(list(set(site_files) - set(local_files)))
+        self.log.info(f'companies files: {len(files)}')
+
         # Pandas
-        self.log.info('----- Bronze -> Silver -----')
-        file_zips = sorted(self.file.files(f'bronze/Emp*.zip'))
-        for file_zip in file_zips:
-            zip_name = os_path.basename(file_zip).split('.')[0]
-            zip_path = f'{self.layer}/{zip_name}'
-            self.log.info(f'{zip_name.split("_")[0]}...')
-            if not self.file.exists(zip_path):
-                with ZipFile(file_zip) as obj_zip:
-                    input_file_name = obj_zip.filelist[0].filename
-                    input_file = obj_zip.open(input_file_name)
-                    chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
+        for file in files:
+            self.log.info(f'{file.split("_")[0]}...')
+            if not self.file.exists(f'{self.layer}/{file}'):
+                with ZipFile(f'{self.data_path}/bronze/{file}.zip') as obj_zip:
+                    csv_name = obj_zip.filelist[0].filename
+                    csv = obj_zip.open(csv_name)
+                    chunks = pd_read_csv(csv, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
                     for idx, chunk in enumerate(chunks, start=1):
-                        output_file_name = f'part_{str(idx).rjust(2, "0")}'
-                        self.log.info(f'{output_file_name}...')
-                        output_file_path = f'{zip_path}/{output_file_name}.parquet'
-                        self.file.save(chunk, output_file_path)
-                        self.log.info(f'{output_file_name} done!')
+                        parquet_name = f'part_{str(idx).rjust(2, "0")}'
+                        self.log.info(f'{parquet_name}...')
+                        self.file.save(chunk, f'{self.layer}/{file}/{parquet_name}.parquet')
+                        self.log.info(f'{parquet_name} done!')
             else:
-                self.log.info(f'{zip_name} already exists.')
-            self.log.info(f'{zip_name.split("_")[0]} done!')
+                self.log.info(f'{file} already exists.')
+            self.log.info(f'{file.split("_")[0]} done!')
         self.log.info('----- Bronze -> Silver -----')
+
+        self.log.info('----- Silver -> Gold -----')
+        local_files = sorted(self.file.files(f'gold/Emp*'))
+
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
+
+        files = sorted(list(set(site_files) - set(local_files)))
+        self.log.info(f'companies files: {len(files)}')
 
         # Spark
-        self.log.info('----- Silver -> Gold -----')
         spark = SparkSession.builder.master(f'local[{self.cores}]').getOrCreate()
-        parquet_folders = sorted(self.file.files(f'{self.layer}/Emp*'))
-        for parquet_folder in parquet_folders:
-            folder_name = parquet_folder.split('/')[-1]
-            folder_path = f'gold/{folder_name}'
-            self.log.info(f'{folder_name.split("_")[0]}...')
-            if not self.file.exists(folder_path):
-                file_parquets = sorted(self.file.files(f'silver/{folder_name}/*.parquet'))
+        for file in files:
+            self.log.info(f'{file.split("_")[0]}...')
+            if not self.file.exists(f'{self.data_path}/gold/{file}'):
+                file_parquets = sorted(self.file.files(f'{self.layer}/{file}/*.parquet'))
                 for file_parquet in file_parquets:
-                    parquet_name = os_path.basename(file_parquet).split('.')[0]
-                    parquet_path = f'{self.data_path}/{folder_path}/{parquet_name}.parquet'
+                    parquet_name = file_parquet.split('.')[0]
+                    parquet_path = f'{self.data_path}/{self.layer}/{file}/{parquet_name}.parquet'
 
                     self.log.info(f'{parquet_name}...')
-                    companies = spark.read.parquet(file_parquet)
+                    companies = spark.read.parquet(parquet_path)
 
                     companies = companies.drop('ente_federativo')
+                    companies = companies.dropDuplicates(subset=['cnpj_basico'])
 
                     companies = (
                         companies
@@ -139,12 +159,13 @@ class Transform:
                     companies = companies.replace('NaN', None)
                     companies = companies.replace('NAN', None)
 
+                    parquet_path = f'{self.data_path}/gold/{file}/{parquet_name}.parquet'
                     Path(parquet_path).parent.mkdir(parents=True, exist_ok=True)
                     companies.write.parquet(parquet_path)
                     self.log.info(f'{parquet_name} done!.')
             else:
-                self.log.info(f'{folder_name} already exists.')
-            self.log.info(f'{folder_name.split("_")[0]} done!')
+                self.log.info(f'{file} already exists.')
+            self.log.info(f'{file.split("_")[0]} done!')
         spark.stop()
         self.log.info('----- Silver -> Gold -----')
 
@@ -167,17 +188,29 @@ class Transform:
         start_time = time()
         self.log.info('domains...')
         columns = ['codigo', 'descricao']
-        re_domains = re_compile(r"(Cnae|Moti|Munic|Natu|Pais|Qual).*zip")
+        re_domains = re_compile(r"(Cnae|Moti|Munic|Natu|Pais|Qual)")
 
-        file_zips = sorted(self.file.files(f'bronze/*.zip'))
-        file_zips = [file_zip for file_zip in file_zips if re_domains.search(file_zip)]
+        site_files = self.file.load('bronze/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
+        site_files = [file.split('.')[0] for file in site_files if re_domains.search(file)]
 
-        for file_zip in file_zips:
-            zip_name = os_path.basename(file_zip).split('.')[0]
-            self.log.info(f'{zip_name.split("_")[0]}...')
-            output_file_name = f'{zip_name}.parquet'
+        local_files = sorted(self.file.files(f'silver/*.parquet'))
+        local_files = [os_path.basename(file).split('.')[0] for file in local_files if re_domains.search(file)]
+
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
+
+        files = sorted(list(set(site_files) - set(local_files)))
+        self.log.info(f'companies files: {len(files)}')
+
+        for file in files:
+            self.log.info(f'{file.split("_")[0]}...')
+            output_file_name = f'{file}.parquet'
             if not self.file.exists(f'{self.layer}/{output_file_name}'):
-                with ZipFile(file_zip) as obj_zip:
+                with ZipFile(f'{self.data_path}/bronze/{file}.zip') as obj_zip:
                     input_file_name = obj_zip.filelist[0].filename
                     input_file = obj_zip.open(input_file_name)
                     output_file = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, names=columns)
@@ -186,11 +219,12 @@ class Transform:
                     self.log.info(f'{output_file_name} done!.')
             else:
                 self.log.info(f'{output_file_name} already exists.')
-            self.log.info(f'{zip_name.split("_")[0]} done!')
+            self.log.info(f'{file.split("_")[0]} done!')
 
         # porte empresa
-        file_name = 'Porte_' + file_zips[0].rsplit('_')[-1].replace('zip', 'parquet')
-        file_path = f'{self.layer}/{file_name}'
+        file_name = 'Porte_' + site_files[0].rsplit('_')[-1]
+        self.log.info(f'{file_name.split("_")[0]}...')
+        file_path = f'{self.layer}/{file_name}.parquet'
         if not self.file.exists(file_path):
             data = {
                 'codigo': [0, 1, 3, 5],
@@ -198,12 +232,14 @@ class Transform:
             }
             data = pd_DataFrame(data)
             self.file.save(data, file_path)
+            self.log.info(f'{file_name.split("_")[0]} done!')
         else:
             self.log.info(f'{file_name} already exists.')
 
         # matriz filial
-        file_name = 'Matriz_' + file_zips[0].rsplit('_')[-1].replace('zip', 'parquet')
-        file_path = f'{self.layer}/{file_name}'
+        file_name = 'Matriz_' + site_files[0].rsplit('_')[-1]
+        self.log.info(f'{file_name.split("_")[0]}...')
+        file_path = f'{self.layer}/{file_name}.parquet'
         if not self.file.exists(file_path):
             data = {
                 'codigo': [1, 2],
@@ -211,12 +247,14 @@ class Transform:
             }
             data = pd_DataFrame(data)
             self.file.save(data, file_path)
+            self.log.info(f'{file_name.split("_")[0]} done!')
         else:
             self.log.info(f'{file_name} already exists.')
 
         # situação cadastral
-        file_name = 'Situacao_' + file_zips[0].rsplit('_')[-1].replace('zip', 'parquet')
-        file_path = f'{self.layer}/{file_name}'
+        file_name = 'Situacao_' + site_files[0].rsplit('_')[-1]
+        self.log.info(f'{file_name.split("_")[0]}...')
+        file_path = f'{self.layer}/{file_name}.parquet'
         if not self.file.exists(file_path):
             data = {
                 'codigo': [1, 2, 3, 4, 8],
@@ -224,6 +262,7 @@ class Transform:
             }
             data = pd_DataFrame(data)
             self.file.save(data, file_path)
+            self.log.info(f'{file_name.split("_")[0]} done!')
         else:
             self.log.info(f'{file_name} already exists.')
 
@@ -279,45 +318,64 @@ class Transform:
             'data_situacao_especial'
         ]
 
+        site_files = self.file.load('bronze/site_files.bin')
+        site_files = site_files['nome_arquivo'].tolist()
+        site_files = [site_file.split('.')[0] for site_file in site_files if site_file.startswith('Est')]
+
+        self.log.info('----- Bronze -> Silver -----')
+        local_files = sorted(self.file.files(f'silver/Est*'))
+
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
+
+        files = sorted(list(set(site_files) - set(local_files)))
+        self.log.info(f'institutions files: {len(files)}')
+
         # Pandas
-        self.log.info('----- Bronze -> Silver -----')
-        file_zips = sorted(self.file.files(f'bronze/Est*.zip'))
-        for file_zip in file_zips:
-            zip_name = os_path.basename(file_zip).split('.')[0]
-            zip_path = f'{self.layer}/{zip_name}'
-            self.log.info(f'{zip_name.split("_")[0]}...')
-            if not self.file.exists(zip_path):
-                with ZipFile(file_zip) as obj_zip:
-                    input_file_name = obj_zip.filelist[0].filename
-                    input_file = obj_zip.open(input_file_name)
-                    chunks = pd_read_csv(input_file, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
+        for file in files:
+            self.log.info(f'{file.split("_")[0]}...')
+            if not self.file.exists(f'{self.layer}/{file}'):
+                with ZipFile(f'{self.data_path}/bronze/{file}.zip') as obj_zip:
+                    csv_name = obj_zip.filelist[0].filename
+                    csv = obj_zip.open(csv_name)
+                    chunks = pd_read_csv(csv, sep=';', encoding='latin-1', header=None, dtype=str, names=columns, chunksize=self.chunk_size)
                     for idx, chunk in enumerate(chunks, start=1):
-                        output_file_name = f'part_{str(idx).rjust(2, "0")}'
-                        self.log.info(f'{output_file_name}...')
-                        output_file_path = f'{zip_path}/{output_file_name}.parquet'
-                        self.file.save(chunk, output_file_path)
-                        self.log.info(f'{output_file_name} done!.')
+                        parquet_name = f'part_{str(idx).rjust(2, "0")}'
+                        self.log.info(f'{parquet_name}...')
+                        self.file.save(chunk, f'{self.layer}/{file}/{parquet_name}.parquet')
+                        self.log.info(f'{parquet_name} done!.')
             else:
-                self.log.info(f'{zip_name} already exists.')
-            self.log.info(f'{zip_name.split("_")[0]} done!')
+                self.log.info(f'{file} already exists.')
+            self.log.info(f'{file.split("_")[0]} done!')
         self.log.info('----- Bronze -> Silver -----')
+
+        self.log.info('----- Silver -> Gold -----')
+        local_files = sorted(self.file.files(f'gold/Est*'))
+
+        files = sorted(list(set(local_files) - set(site_files)))
+        if len(files) > 0:
+            files = [f'{self.layer}/{file}' for file in files]
+            self.file.delete(files)
+        self.log.info(f'delete files: {len(files)}')
+
+        files = sorted(list(set(site_files) - set(local_files)))
+        self.log.info(f'institutions files: {len(files)}')
 
         # Spark
-        self.log.info('----- Silver -> Gold -----')
         spark = SparkSession.builder.master(f'local[{self.cores}]').getOrCreate()
-        parquet_folders = sorted(self.file.files(f'{self.layer}/Est*'))
-        for parquet_folder in parquet_folders:
-            folder_name = parquet_folder.split('/')[-1]
-            folder_path = f'gold/{folder_name}'
-            self.log.info(f'{folder_name.split("_")[0]}...')
-            if not self.file.exists(folder_path):
-                file_parquets = sorted(self.file.files(f'silver/{folder_name}/*.parquet'))
+        for file in files:
+            self.log.info(f'{file.split("_")[0]}...')
+            if not self.file.exists(f'{self.data_path}/gold/{file}'):
+                file_parquets = sorted(self.file.files(f'{self.layer}/{file}/*.parquet'))
                 for file_parquet in file_parquets:
-                    parquet_name = os_path.basename(file_parquet).split('.')[0]
-                    parquet_path = f'{self.data_path}/{folder_path}/{parquet_name}.parquet'
+                    parquet_name = file_parquet.split('.')[0]
+                    parquet_path = f'{self.data_path}/{self.layer}/{file}/{parquet_name}.parquet'
 
                     self.log.info(f'{parquet_name}...')
-                    institutions = spark.read.parquet(file_parquet)
+                    institutions = spark.read.parquet(parquet_path)
 
                     institutions = (
                         institutions
@@ -396,12 +454,13 @@ class Transform:
                     institutions = institutions.replace('NaN', None)
                     institutions = institutions.replace('NAN', None)
 
+                    parquet_path = f'{self.data_path}/gold/{file}/{parquet_name}.parquet'
                     Path(parquet_path).parent.mkdir(parents=True, exist_ok=True)
                     institutions.write.parquet(parquet_path)
                     self.log.info(f'{parquet_name} done!.')
             else:
-                self.log.info(f'{folder_name} already exists.')
-            self.log.info(f'{folder_name.split("_")[0]} done!')
+                self.log.info(f'{file} already exists.')
+            self.log.info(f'{file.split("_")[0]} done!')
         spark.stop()
         self.log.info('----- Silver -> Gold -----')
 
@@ -425,8 +484,8 @@ class Transform:
 
         try:
             self.domains()
-            self.institutions()
             self.companies()
+            self.institutions()
         except Exception:
             raise
 

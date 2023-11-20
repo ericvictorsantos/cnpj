@@ -28,7 +28,7 @@ class CNPJBase:
 
     def __init__(self):
         self.config = Config().load_config()
-        self.limit = self.config['job']['limit']
+        self.chunk_size = self.config['job']['chunk_size']
 
     @staticmethod
     def close_database_connection():
@@ -47,307 +47,31 @@ class CNPJBase:
         if CNPJBase.conn:
             CNPJBase.conn.close()
 
-    def delete_expired_data(self, tenant_id, expiration_date):
+    def get_imported_files(self):
         """
-        Delete expired data.
+        Get imported files.
 
         Parameters
         ----------
-        tenant_id : str
-            ID of the tenant.
-        expiration_date : datetime.datetime
-            Date of the expiration.
+        None.
 
         Returns
         -------
-        deleted : int
-            Deleted count.
+        imported_files : list[str]
+            Imported files.
         """
 
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['sales-potential']
+        query = f'''select nome_arquivo from arquivo;'''
 
-        result = collection.delete_many({'createdAt': {'$lt': expiration_date}})
-        deleted = result.deleted_count
+        try:
+            conn = self.open_database_connection()
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                imported_files = cursor.fetchall()
+        except Exception:
+            raise
 
-        return deleted
-
-    def get_clients(self, tenant_id, clients_code):
-        """
-        Get clients.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-        clients_code : list[str]
-            List of client external code.
-
-        Returns
-        -------
-        clients : list[dict]
-            List of clients.
-        """
-
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['client']
-
-        skip = 0
-        clients = []
-
-        where = {
-            'externalCode': {'$in': clients_code}
-        }
-        fields = {
-            '_id': 0,
-            'externalCode': 1,
-            'name': 1
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            clients.extend(results)
-            skip += self.limit
-
-        return clients
-
-    def get_orders(self, tenant_id, start_date, clients_code):
-        """
-        Get orders.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-        start_date : datetime
-            Date for search.
-        clients_code : list[str]
-            List of client external code.
-
-        Returns
-        -------
-        orders : list[dict]
-            List of orders.
-        """
-
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['order']
-
-        skip = 0
-        orders = []
-
-        where = {
-            'orderDetails.creationDate': {'$gte': start_date},
-            'clientExternalCode': {'$in': clients_code},
-            'orderStatus': 'billed',
-            'orderDetails.orderType': {'$in': ['normal', 'collect', 'futureSale']}
-        }
-
-        fields = {
-            '_id': 0,
-            'userExternalCode': 1,
-            'clientExternalCode': 1,
-            'orderDetails.creationDate': 1,
-            'orderItems.soldPrice': 1,
-            'orderItems.soldQuantity': 1,
-            'orderItems.productExternalCode': 1,
-            'orderItems.userExternalCode': 1
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            orders.extend(results)
-            skip += self.limit
-
-        return orders
-
-    def get_previous_potentials(self, tenant_id, start_date):
-        """
-        Get potentials.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-        start_date : datetime
-            Date for search.
-
-        Returns
-        -------
-        potentials : list[dict]
-            List of sales potential.
-        """
-
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['sales-potential']
-
-        skip = 0
-        potentials = []
-
-        where = {
-            'createdAt': {'$gte': start_date}
-        }
-        fields = {
-            '_id': 0,
-            'userExternalCode': 1,
-            'potentials.value.clientExternalCode': 1,
-            'potentials.quantity.clientExternalCode': 1,
-            'potentials.weight.clientExternalCode': 1,
-            'potentials.value.products.productExternalCode': 1,
-            'potentials.quantity.products.productExternalCode': 1,
-            'potentials.weight.products.productExternalCode': 1,
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            potentials.extend(results)
-            skip += self.limit
-
-        return potentials
-
-    def get_products(self, tenant_id, products_code):
-        """
-        Get products.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-        products_code : list[str]
-            List of product external code.
-
-        Returns
-        -------
-        products : list[dict]
-            List of products.
-        """
-
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['product']
-
-        skip = 0
-        products = []
-
-        where = {
-            'externalCode': {'$in': products_code}
-        }
-        fields = {
-            '_id': 0,
-            'externalCode': 1,
-            'name': 1,
-            'netWeight': 1
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            products.extend(results)
-            skip += self.limit
-
-        return products
-
-    def get_users(self, tenant_id):
-        """
-        Get users.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-
-        Returns
-        -------
-        users : list[dict]
-            List of users.
-        """
-
-        conn = self.open_database_connection()
-        database = conn['e3-base']
-        collection = database['user']
-
-        skip = 0
-        users = []
-
-        where = {
-            'tenantID': tenant_id,
-            'inactive': False,
-            'userRole': {'$in': ['vendor', 'supervisor']}
-        }
-        fields = {
-            '_id': 0,
-            'externalCode': 1,
-            'name': 1,
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            users.extend(results)
-            skip += self.limit
-
-        return users
-
-    def get_wallets(self, tenant_id, users_code):
-        """
-        Get wallets.
-
-        Parameters
-        ----------
-        tenant_id : str
-            ID of the tenant.
-        users_code : list[str]
-            List of user external code.
-
-        Returns
-        -------
-        wallets : list[dict]
-            List of wallets.
-        """
-
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['wallet']
-
-        skip = 0
-        wallets = []
-
-        where = {
-            'userExternalCode': {'$in': users_code},
-            'clientsExternalCode.0': {'$exists': True}
-        }
-        fields = {
-            '_id': 0,
-            'userExternalCode': 1,
-            'clientsExternalCode': 1,
-        }
-
-        while True:
-            cursor = collection.find(where, fields).skip(skip).limit(self.limit)
-            results = list(cursor)
-            if len(results) == 0:
-                break
-            wallets.extend(results)
-            skip += self.limit
-
-        return wallets
+        return imported_files
 
     @staticmethod
     def open_database_connection():
@@ -365,48 +89,146 @@ class CNPJBase:
         """
 
         if CNPJBase.conn is None:
-            CNPJBase.conn = PostgresHook(conn_id='cnpj').get_conn()
+            CNPJBase.conn = PostgresHook(postgres_conn_id='cnpj').get_conn()
+            CNPJBase.conn.autocommit = True
 
         conn = CNPJBase.conn
 
         return conn
 
-    def set_potentials(self, tenant_id, potentials):
+    def set_file_info(self, file_info):
         """
-        Set products.
+        Set wallets.
 
         Parameters
         ----------
-        tenant_id : str
-            ID of the tenant.
-        potentials : list[dict]
-            List of potentials.
+        file_info : list[dict]
+            List of data.
 
         Returns
         -------
-        inserted : int
-            Count inserted values.
-        updated : int
-            Count updated values.
+        None
         """
 
-        conn = self.open_database_connection()
-        database = conn[tenant_id]
-        collection = database['sales-potential']
-        inserted = 0
-        updated = 0
+        query = []
+        fields = list(file_info[0].keys())
+        columns = [f'"{column}"' for column in fields]
 
-        updates = []
-        for potential in potentials:
-            where = {'userExternalCode': potential.get('userExternalCode'),
-                     'isActive': potential.get('isActive')}
-            update = {'$set': potential}
-            updates.append(UpdateOne(where, update))
+        # insert
+        field_names = ', '.join([f'%({field})s' for field in fields])
+        column_names = str(columns).replace('[', '(').replace(']', ')').replace("'", "")
+        query.append(f'''insert into "arquivo" {column_names} values ({field_names})''')
 
-        for idx in range(0, len(updates), self.limit):
-            chunk_updates = updates[idx: idx + self.limit]
-            result = collection.bulk_write(chunk_updates)
-            inserted += result.upserted_count
-            updated += result.modified_count
+        # update
+        query.append(f'''on conflict ("nome")''')
+        set_values = ', '.join(f'{column} = %({field})s' for column, field in zip(columns, fields))
+        query.append(f"do update set {set_values};")
+        query = ' '.join(query)
 
-        return inserted, updated
+        try:
+            conn = self.open_database_connection()
+            with conn.cursor() as cursor:
+                extras.execute_batch(cursor, query, file_info)
+        except Exception:
+            raise
+
+    def upsert_companies(self):
+        """
+        Set companies.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        query = '''
+            insert into
+                empresa
+            select
+                *
+            from
+                empresa_temp
+            on conflict
+                (cnpj_basico)
+            do update set
+                razao_social = excluded.razao_social,
+                cod_natureza_juridica = excluded.cod_natureza_juridica,
+                cod_qualificacao_responsavel = excluded.cod_qualificacao_responsavel,
+                capital_social = excluded.capital_social,
+                cod_porte_empresa = excluded.capital_social,
+                atualizado_em = excluded.atualizado_em;
+            drop table empresa_temp;
+        '''
+
+        try:
+            conn = self.open_database_connection()
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+        except Exception:
+            raise
+
+    def upsert_institutions(self):
+        """
+        Upsert institutions.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        query = '''
+            insert into
+                estabelecimento 
+            select
+                *
+            from
+                estabelecimento_temp
+            on conflict
+                (cnpj_completo)
+            do update set
+                cod_matriz_filial = excluded.cod_matriz_filial,
+                nome_fantasia = excluded.nome_fantasia,
+                cod_situacao_cadastral = excluded.cod_situacao_cadastral,
+                data_situacao_cadastral = excluded.data_situacao_cadastral,
+                cod_motivo_situacao_cadastral = excluded.cod_motivo_situacao_cadastral,
+                nome_cidade_exterior = excluded.nome_cidade_exterior,
+                cod_pais = excluded.cod_pais,
+                data_inicio_atividade = excluded.data_inicio_atividade,
+                cod_cnae_principal = excluded.cod_cnae_principal,
+                cod_cnae_secundaria = excluded.cod_cnae_secundaria,
+                tipo_logradouro = excluded.tipo_logradouro,
+                logradouro = excluded.logradouro,
+                numero = excluded.numero,
+                complemento = excluded.complemento,
+                bairro = excluded.bairro,
+                cep = excluded.cep,
+                uf = excluded.uf,
+                cod_municipio = excluded.cod_municipio,
+                ddd_1 = excluded.ddd_1,
+                telefone_1 = excluded.telefone_1,
+                ddd_2 = excluded.ddd_2,
+                telefone_2 = excluded.telefone_2,
+                ddd_fax = excluded.ddd_fax,
+                fax = excluded.fax,
+                correio_eletronico = excluded.correio_eletronico,
+                situacao_especial = excluded.situacao_especial,
+                data_situacao_especial = excluded.data_situacao_especial,
+                cnpj_completo = excluded.cnpj_completo,
+                atualizado_em = excluded.atualizado_em;
+            drop table estabelecimento_temp;
+        '''
+
+        try:
+            conn = self.open_database_connection()
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+        except Exception:
+            raise

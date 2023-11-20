@@ -67,7 +67,9 @@ class Start:
         self.log.info('delete_temp_files...')
 
         files = self.file.files(f'bronze/*.tmp')
-        self.file.delete(files)
+        if len(files) > 0:
+            files = [f'bronze/{file}' for file in files]
+            self.file.delete(files)
         self.log.info(f'delete files: {len(files)}')
 
         elapsed_time = round(time() - start_time, 3)

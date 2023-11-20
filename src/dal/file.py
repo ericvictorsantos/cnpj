@@ -4,12 +4,13 @@
 # built-in
 from glob import glob
 from pathlib import Path
+from shutil import rmtree
 from logging import getLogger
-from os import path as os_path, remove as os_remove
 from pickle import dump as pck_save, load as pck_load
+from os import path as os_path, remove as os_remove
 
 # installed
-from pandas import DataFrame, read_parquet as pd_read_parquet
+from pandas import read_parquet as pd_read_parquet
 
 # custom
 from cnpj.config import Config
@@ -78,7 +79,10 @@ class File:
         for file_path in file_paths:
             file_path = f'{self.data_path}/{file_path}'
             if os_path.exists(file_path):
-                os_remove(file_path)
+                if os_path.isfile(file_path):
+                    os_remove(file_path)
+                else:
+                    rmtree(file_path)
 
     def exists(self, file_path):
         """
@@ -103,7 +107,7 @@ class File:
 
     def files(self, file_name):
         """
-        Find zip files.
+        Find files.
 
         Parameters
         ----------
@@ -117,6 +121,7 @@ class File:
         """
 
         files = glob(f'{self.data_path}/{file_name}')
+        files = sorted([os_path.basename(file) for file in files])
 
         return files
 
