@@ -4,12 +4,14 @@
 # built-in
 from time import time
 from datetime import datetime
+from re import compile as re_compile
 from os import cpu_count as os_cpu_count
 
 # installed
 from logging import getLogger
 from pyspark.sql import SparkSession
 from airflow.hooks.base import BaseHook
+from pandas import read_parquet as pd_read_parquet
 
 # custom
 from cnpj.config import Config
@@ -89,11 +91,7 @@ class Load:
                     print(f'update: {time() - start}')
                     self.log.info(f'{parquet_name} done!.')
 
-                site_files = self.file.load(f'bronze/site_files.bin')
-                site_files = site_files[site_files['nome_arquivo'] == f'{file}.zip']
-                site_files['atualizado_em'] = datetime.now()
-                file_info = site_files.to_dict(orient='records')
-                self.cnpj_base.set_file_info(file_info)
+                self.file_info(file)
             else:
                 self.log.info(f'{file.split("_")[0]} imported!')
 
@@ -101,6 +99,75 @@ class Load:
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'companies done! {elapsed_time}s')
+
+    def domains(self):
+        """
+        Load domains.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        start_time = time()
+        self.log.info('domains...')
+        re_domains = re_compile(r"(Cnae|Moti|Munic|Natu|Pais|Qual|Porte|Matriz|Situacao)")
+        table_name = {'Cnaes': 'cnae', 'Matriz': 'matriz_filial', 'Motivos': 'motivo_cadastral',
+                      'Municipios': 'municipio', 'Naturezas': 'natureza_juridica', 'Paises': 'pais',
+                      'Porte': 'porte_empresa', 'Qualificacoes': 'qualificacao_socio', 'Situacao': 'situacao_cadastral'}
+
+        imported_files = self.cnpj_base.get_imported_files()
+        imported_files = [file[0].split('.')[0] for file in imported_files if re_domains.search(file[0])]
+
+        files = sorted(self.file.files(f'silver/*.parquet'))
+        files = [file.split('.')[0] for file in files]
+        for file in files:
+            file_name = file.split("_")[0]
+            self.log.info(f'{file_name}...')
+            if file not in imported_files:
+                file_path = f'{self.data_path}/silver/{file}.parquet'
+                domains = pd_read_parquet(file_path)
+                domains = domains.to_dict(orient='records')
+                table = table_name[file_name]
+                self.cnpj_base.set_domains(table, domains)
+                self.file_info(file)
+            else:
+                self.log.info(f'{file.split("_")[0]} imported!')
+
+            self.log.info(f'{file.split("_")[0]} done!')
+
+        elapsed_time = round(time() - start_time, 3)
+        self.log.info(f'domains done! {elapsed_time}s')
+
+    def file_info(self, file):
+        """
+        Load file info.
+
+        Parameters
+        ----------
+        file : str
+            File name.
+
+        Returns
+        -------
+        None
+        """
+
+        file_info = {}
+
+        name, last_extraction = file.split('_')
+        last_extraction = datetime.strptime(last_extraction, '%Y%m%d')
+
+        file_info['nome'] = name
+        file_info['nome_arquivo'] = file
+        file_info['ultima_extracao'] = last_extraction
+        file_info['atualizado_em'] = datetime.now()
+        self.cnpj_base.set_file_info([file_info])
+        self.log.info(f'{name} set file info!')
 
     def institutions(self):
         """
@@ -150,11 +217,7 @@ class Load:
                     print(f'updated: {time() - start}')
                     self.log.info(f'{parquet_name} done!.')
 
-                site_files = self.file.load(f'bronze/site_files.bin')
-                site_files = site_files[site_files['nome_arquivo'] == f'{file}.zip']
-                site_files['atualizado_em'] = datetime.now()
-                file_info = site_files.to_dict(orient='records')
-                self.cnpj_base.set_file_info(file_info)
+                self.file_info(file)
             else:
                 self.log.info(f'{file.split("_")[0]} imported!')
 
@@ -179,7 +242,7 @@ class Load:
         self.log.info('----- Load -----')
 
         try:
-            # self.domains()
+            self.domains()
             self.companies()
             self.institutions()
         except Exception:
