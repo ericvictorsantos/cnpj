@@ -132,6 +132,47 @@ class CNPJBase:
         except Exception:
             raise
 
+    def set_domains(self, table, values):
+        """
+        Set wallets.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        values : list[dict]
+            List of data.
+
+        Returns
+        -------
+        None
+        """
+
+        query = []
+        fields = list(values[0].keys())
+        columns = [f'"{column}"' for column in fields]
+        limit = 1000
+
+        # insert
+        field_names = ', '.join([f'%({field})s' for field in fields])
+        column_names = str(columns).replace('[', '(').replace(']', ')').replace("'", "")
+        query.append(f'''insert into {table} values ({field_names})''')
+
+        # update
+        query.append(f'''on conflict ("codigo")''')
+        set_values = ', '.join(f'{column} = %({field})s' for column, field in zip(columns, fields))
+        query.append(f"do update set {set_values};")
+        query = ' '.join(query)
+
+        try:
+            conn = self.open_database_connection()
+            with conn.cursor() as cursor:
+                for idx in range(0, len(values), limit):
+                    chunk_values = values[idx: idx + limit]
+                    extras.execute_batch(cursor, query, chunk_values)
+        except Exception:
+            raise
+
     def upsert_companies(self):
         """
         Set companies.
