@@ -73,7 +73,7 @@ class Transform:
         site_files = [site_file.split('.')[0] for site_file in site_files if site_file.startswith('Emp')]
 
         self.log.info('----- Bronze -> Silver -----')
-        local_files = sorted(self.file.files(f'silver/Emp*'))
+        local_files = sorted(self.file.files(f'{self.layer}/Emp*'))
 
         files = sorted(list(set(local_files) - set(site_files)))
         if len(files) > 0:
@@ -107,7 +107,7 @@ class Transform:
 
         files = sorted(list(set(local_files) - set(site_files)))
         if len(files) > 0:
-            files = [f'{self.layer}/{file}' for file in files]
+            files = [f'gold/{file}' for file in files]
             self.file.delete(files)
         self.log.info(f'delete files: {len(files)}')
 
@@ -323,7 +323,7 @@ class Transform:
         site_files = [site_file.split('.')[0] for site_file in site_files if site_file.startswith('Est')]
 
         self.log.info('----- Bronze -> Silver -----')
-        local_files = sorted(self.file.files(f'silver/Est*'))
+        local_files = sorted(self.file.files(f'{self.layer}/Est*'))
 
         files = sorted(list(set(local_files) - set(site_files)))
         if len(files) > 0:
@@ -357,7 +357,7 @@ class Transform:
 
         files = sorted(list(set(local_files) - set(site_files)))
         if len(files) > 0:
-            files = [f'{self.layer}/{file}' for file in files]
+            files = [f'gold/{file}' for file in files]
             self.file.delete(files)
         self.log.info(f'delete files: {len(files)}')
 
