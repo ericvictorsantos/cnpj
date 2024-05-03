@@ -7,7 +7,7 @@ from pathlib import Path
 from shutil import rmtree
 from logging import getLogger
 from pickle import dump as pck_save, load as pck_load
-from os import path as os_path, remove as os_remove
+from os import path as os_path, remove as os_remove, mkdir as os_mkdir
 
 # installed
 from pandas import read_parquet as pd_read_parquet
@@ -22,7 +22,6 @@ class File:
 
     Attributes
     ----------
-    None.
 
     Methods
     -------
@@ -30,11 +29,10 @@ class File:
         Execute job.
     """
 
-    def __init__(self):
+    def __init__(self, config):
         self.log = getLogger('airflow.task')
-        self.config = Config().load_config()
-        self.data_path = self.config['data_path']
-        self.local_or_cloud = self.config['environment']['local_or_cloud']
+        self.data_path = config['data']['path']
+        self.local_or_cloud = config['environment']['local_or_cloud']
 
     def clear(self):
         """
@@ -61,6 +59,25 @@ class File:
                 else:
                     self.log.info('no temp files to delete.')
                 self.log.info(f'----- {layer} -----')
+
+    def create_layers(self):
+        """
+        Create data layers.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None
+        """
+
+        for layer in ['bronze', 'silver', 'gold']:
+            path = f'{self.data_path}/{layer}'
+            if not os_path.exists(path):
+                os_mkdir(path)
+                self.log.info(f'data layer {layer} created.')
 
     def delete(self, file_paths):
         """

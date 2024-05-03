@@ -10,7 +10,6 @@ from logging import getLogger
 from dateutil.relativedelta import relativedelta
 
 # custom
-from cnpj.config import Config
 from cnpj.src.dal.database import CNPJBase
 
 
@@ -30,8 +29,6 @@ class End:
     def __init__(self):
         self.cnpj_base = CNPJBase()
         self.log = getLogger('airflow.task')
-        self.config = Config().load_config()
-        self.data_validity = self.config['job']['data_validity']
 
     def close_database_connection(self):
         """

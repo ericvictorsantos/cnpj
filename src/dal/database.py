@@ -18,7 +18,6 @@ class CNPJBase:
     Attributes
     ----------
 
-
     Methods
     -------
 
@@ -26,9 +25,8 @@ class CNPJBase:
 
     conn = None
 
-    def __init__(self):
-        self.config = Config().load_config()
-        self.chunk_size = self.config['job']['chunk_size']
+    def __init__(self, config):
+        self.chunk_size = config['job']['chunk_size']
 
     @staticmethod
     def close_database_connection():

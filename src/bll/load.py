@@ -14,7 +14,6 @@ from airflow.hooks.base import BaseHook
 from pandas import read_parquet as pd_read_parquet
 
 # custom
-from cnpj.config import Config
 from cnpj.src.dal.file import File
 from cnpj.src.dal.database import CNPJBase
 
@@ -25,7 +24,6 @@ class Load:
 
     Attributes
     ----------
-    None.
 
     Methods
     -------
@@ -33,15 +31,14 @@ class Load:
         Execute job.
     """
 
-    def __init__(self):
-        self.file = File()
+    def __init__(self, config):
+        self.file = File(config)
         self.cnpj_base = CNPJBase()
         self.log = getLogger('airflow.task')
+        self.conn = BaseHook.get_connection('cnpj')
         self.layer = 'gold'
         self.cores = os_cpu_count() // 2
-        self.config = Config().load_config()
-        self.data_path = self.config['data_path']
-        self.conn = BaseHook.get_connection('cnpj')
+        self.data_path = config['data']['path']
 
     def companies(self):
         """
@@ -225,27 +222,3 @@ class Load:
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'institutions done! {elapsed_time}s')
-
-    def run(self):
-        """
-        Run load.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        None
-        """
-
-        self.log.info('----- Load -----')
-
-        try:
-            self.domains()
-            self.companies()
-            self.institutions()
-        except Exception:
-            raise
-
-        self.log.info('----- Load -----')

@@ -17,15 +17,14 @@ class Start:
 
     Attributes
     ----------
-    None.
 
     Methods
     -------
     None.
     """
 
-    def __init__(self):
-        self.file = File()
+    def __init__(self, config):
+        self.file = File(config)
         self.log = getLogger('airflow.task')
 
     def clear_temporary_data(self):
@@ -49,35 +48,9 @@ class Start:
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'clear_temporary_data done! {elapsed_time}s')
 
-    def delete_temp_files(self):
+    def create_layers(self):
         """
-        Delete temporary (.tmp) files.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        files : list[str]
-            Local file names.
-        """
-
-        start_time = time()
-        self.log.info('delete_temp_files...')
-
-        files = self.file.files(f'bronze/*.tmp')
-        if len(files) > 0:
-            files = [f'bronze/{file}' for file in files]
-            self.file.delete(files)
-        self.log.info(f'delete files: {len(files)}')
-
-        elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'delete_temp_files done! {elapsed_time}s')
-
-    def run(self):
-        """
-        Run start.
+        Create data layers.
 
         Parameters
         ----------
@@ -89,14 +62,9 @@ class Start:
         """
 
         start_time = time()
+        self.log.info('create_layers...')
 
-        self.log.info(f'start...')
-
-        try:
-            self.clear_temporary_data()
-            self.delete_temp_files()
-        except Exception:
-            raise
+        self.file.create_layers()
 
         elapsed_time = round(time() - start_time, 3)
-        self.log.info(f'start done! {elapsed_time}s')
+        self.log.info(f'create_layers done! {elapsed_time}s')

@@ -19,8 +19,8 @@ class Config:
     ----------
     job_path : str
         Path of job.
-    key : str
-        Key from get dict.
+    job_name : str
+        Name of job.
 
     Methods
     -------
@@ -31,9 +31,6 @@ class Config:
     def __init__(self, key=None):
         self.job_path = os_path.dirname(__file__)
         self.job_name = os_path.basename(self.job_path)
-        self.local_or_cloud = Variable.get('environment', default_var='local')
-        self.timezone = Variable.get('timezone', default_var='America/Recife')
-        self.key = key
 
     def load_config(self):
         """
@@ -46,17 +43,28 @@ class Config:
         Returns
         -------
         config : dict
-            Dict configuration.
+            Job configuration.
         """
 
-        config = toml_load(f'{self.job_path}/config.toml')
-        config['job']['path'] = self.job_path
-        config['job']['name'] = self.job_name
-        config['data_path'] = self.job_path.replace('dags', 'data')
-        config['environment'] = {'local_or_cloud': self.local_or_cloud}
-        config['environment'].update({'timezone': self.timezone})
+        config = {}
+        default_params = toml_load(f'{self.job_path}/config.toml')
 
-        if self.key:
-            config = config[self.key]
+        config['job'] = {
+            'path': self.job_path,
+            'name': self.job_name
+        }
+        config['data'] = {
+            'path': self.job_path.replace('dags', 'data')
+        }
+        config['environment'] = {
+            'local_or_cloud': Variable.get('environment', default_var='local'),
+            'timezone': Variable.get('timezone', default_var='America/Recife')
+        }
+
+        variable_job = Variable.get(key=self.job_name, default_var=None, deserialize_json=True)
+        if variable_job:
+            config['params'] = variable_job.get('params', default_params)
+        else:
+            config['params'] = default_params
 
         return config

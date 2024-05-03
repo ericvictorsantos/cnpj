@@ -14,9 +14,7 @@ from wget import download as wget_download
 from pandas import read_html as pd_read_html
 
 # custom
-from cnpj.config import Config
 from cnpj.src.dal.file import File
-from cnpj.src.bll.start import Start
 
 
 class Extract:
@@ -25,22 +23,19 @@ class Extract:
 
     Attributes
     ----------
-    None.
 
     Methods
     -------
     None.
     """
 
-    def __init__(self):
-        self.file = File()
-        self.start = Start()
-        self.layer = 'bronze'
+    def __init__(self, config):
+        self.file = File(config)
         self.log = getLogger('airflow.task')
-        self.config = Config().load_config()
-        self.url = self.config['job']['url']
-        self.data_path = self.config["data_path"]
+        self.layer = 'bronze'
         self.max_workers = 4
+        self.url = config['params']['url']
+        self.data_path = config['data']['path']
 
     def companies(self):
         """
@@ -219,29 +214,3 @@ class Extract:
 
         elapsed_time = round(time() - start_time, 3)
         self.log.info(f'site_files done! {elapsed_time}s')
-
-    def run(self):
-        """
-        Run extract.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        None    
-        """
-
-        self.log.info('----- Extract -----')
-
-        try:
-            self.start.run()
-            self.site_files()
-            self.domains()
-            self.companies()
-            self.institutions()
-        except Exception:
-            raise
-
-        self.log.info('----- Extract -----')
