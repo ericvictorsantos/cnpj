@@ -26,7 +26,7 @@ job_name = config['job']['name']
 job_default_params = {
     'args': {
         'days_ago': 1,
-        'email': 'eric.santos@n3urons.com',
+        'email': 'ericvictorsantos@outlook.com',
         'email_on_failure': False,
         'email_on_retry': False,
         'retries': 1,
